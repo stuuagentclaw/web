@@ -12,8 +12,10 @@ import type { YieldWalletContextValue } from '../contexts/YieldWalletContext'
 import { YieldWalletProvider, useYieldWallet } from '../contexts/YieldWalletContext'
 import { useBitcoinSigning } from '../hooks/useBitcoinSigning'
 import { useSolanaSigning } from '../hooks/useSolanaSigning'
+import { useDepositApproval } from '../hooks/useDepositApproval'
 import { useStatusPolling } from '../hooks/useStatusPolling'
 import { useYieldApproval } from '../hooks/useYieldApproval'
+import { useYieldDeposit } from '../hooks/useYieldDeposit'
 import { useYieldDisplayValues } from '../hooks/useYieldDisplayValues'
 import { useYieldExecution } from '../hooks/useYieldExecution'
 import { useYieldHandlers } from '../hooks/useYieldHandlers'
@@ -23,6 +25,7 @@ import type { Asset, TargetPool, YieldWidgetProps, ThemeMode } from '../types'
 import { getChainType } from '../types'
 import { AddressInputModal } from './AddressInputModal'
 import { ApprovalStep } from './ApprovalStep'
+import { DepositStep } from './DepositStep'
 import { ExecutionStep } from './ExecutionStep'
 import { InputStep } from './InputStep'
 import { PoolInfoHeader } from './PoolInfoHeader'
@@ -147,6 +150,10 @@ const YieldWidgetContent = ({
   useYieldApproval()
 
   useYieldExecution()
+
+  useDepositApproval()
+
+  useYieldDeposit()
 
   useStatusPolling({ apiClient, onSwapSuccess, onSwapError, refetchSellBalance, refetchBuyBalance })
 
@@ -289,6 +296,20 @@ const YieldWidgetContent = ({
 
         {state.matches('executing') && (
           <ExecutionStep context={state.context} send={actorRef.send} />
+        )}
+
+        {(state.matches('deposit_approval') ||
+          state.matches('deposit_approving') ||
+          state.matches('depositing') ||
+          state.matches('deposit_polling')) && (
+          <DepositStep
+            context={state.context}
+            send={actorRef.send}
+            isApproval={state.matches('deposit_approval')}
+            isApproving={state.matches('deposit_approving')}
+            isDepositing={state.matches('depositing')}
+            isPolling={state.matches('deposit_polling')}
+          />
         )}
 
         {(state.matches('polling_status') ||

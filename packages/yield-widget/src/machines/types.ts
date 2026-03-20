@@ -1,6 +1,13 @@
-import type { Asset, QuoteResponse, TradeRate } from '../types'
+import type { Asset, QuoteResponse, TargetPool, TradeRate } from '../types'
 
-export type ErrorSource = 'QUOTE_ERROR' | 'APPROVAL_ERROR' | 'EXECUTE_ERROR' | 'STATUS_FAILED'
+export type ErrorSource =
+  | 'QUOTE_ERROR'
+  | 'APPROVAL_ERROR'
+  | 'EXECUTE_ERROR'
+  | 'STATUS_FAILED'
+  | 'DEPOSIT_ERROR'
+
+export type YieldStep = 'input' | 'routing' | 'approval' | 'swap' | 'deposit' | 'complete' | 'error'
 
 export type YieldMachineContext = {
   sellAsset: Asset
@@ -11,6 +18,7 @@ export type YieldMachineContext = {
   quote: QuoteResponse | null
   txHash: string | null
   approvalTxHash: string | null
+  depositTxHash: string | null
   error: string | null
   errorSource: ErrorSource | null
   retryCount: number
@@ -22,6 +30,12 @@ export type YieldMachineContext = {
   isSellAssetUtxo: boolean
   isSellAssetSolana: boolean
   isBuyAssetEvm: boolean
+  /** Yield-specific: the target pool for deposit */
+  targetPool: TargetPool | null
+  /** Whether user's token is already the deposit token (skip swap) */
+  isDirectDeposit: boolean
+  /** Current step in the yield flow */
+  yieldStep: YieldStep
 }
 
 export type YieldMachineEvent =
@@ -40,6 +54,8 @@ export type YieldMachineEvent =
   | { type: 'EXECUTE_ERROR'; error: string }
   | { type: 'STATUS_CONFIRMED' }
   | { type: 'STATUS_FAILED'; error: string }
+  | { type: 'DEPOSIT_SUCCESS'; txHash: string }
+  | { type: 'DEPOSIT_ERROR'; error: string }
   | { type: 'RETRY' }
   | { type: 'RESET' }
   | { type: 'SET_WALLET_ADDRESS'; address: string | undefined }

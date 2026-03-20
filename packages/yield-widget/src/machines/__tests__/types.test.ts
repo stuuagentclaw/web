@@ -37,6 +37,10 @@ describe('YieldMachine Types', () => {
       isSellAssetUtxo: false,
       isSellAssetSolana: false,
       isBuyAssetEvm: true,
+      depositTxHash: null,
+      targetPool: null,
+      isDirectDeposit: false,
+      yieldStep: 'input',
     }
 
     expect(context.sellAsset.symbol).toBe('ETH')

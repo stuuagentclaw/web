@@ -34,22 +34,28 @@ export const useStatusPolling = ({
   const pollingRef = useRef(false)
   useEffect(() => {
     const snap = actorRef.getSnapshot()
-    if (!snap.matches('polling_status')) {
+    const isSwapPolling = snap.matches('polling_status')
+    const isDepositPolling = snap.matches('deposit_polling')
+    if (!isSwapPolling && !isDepositPolling) {
       pollingRef.current = false
       return
     }
     if (pollingRef.current) return
     pollingRef.current = true
 
+    // For deposit polling, use the deposit tx hash on the target pool chain
+    const txHash = isDepositPolling ? context.depositTxHash : context.txHash
+
     let stopped = false
     let registeredWithApi = false
 
     const poll = async () => {
-      if (stopped || !context.txHash) return
+      if (stopped || !txHash) return
 
-      if (!registeredWithApi && context.quote?.quoteId) {
+      // Only register with API for swap polling, not deposit polling
+      if (isSwapPolling && !registeredWithApi && context.quote?.quoteId) {
         try {
-          await apiClient.getSwapStatus({ quoteId: context.quote.quoteId, txHash: context.txHash })
+          await apiClient.getSwapStatus({ quoteId: context.quote.quoteId, txHash })
           registeredWithApi = true
         } catch {
           // Retry on next poll cycle — don't block on-chain polling
@@ -59,20 +65,33 @@ export const useStatusPolling = ({
       try {
         let statusParams: CheckStatusParams
 
-        if (context.isSellAssetEvm) {
+        if (isDepositPolling) {
+          // Deposit always happens on the buy-side chain (where the pool lives)
+          if (context.isBuyAssetEvm && context.targetPool) {
+            statusParams = {
+              txHash,
+              chainType: 'evm',
+              chainId: getEvmNetworkId(context.targetPool.chainId),
+            }
+          } else {
+            console.warn('[yield-widget] Deposit polling only supports EVM chains. Auto-confirming.')
+            actorRef.send({ type: 'STATUS_CONFIRMED' })
+            return
+          }
+        } else if (context.isSellAssetEvm) {
           statusParams = {
-            txHash: context.txHash,
+            txHash,
             chainType: 'evm',
             chainId: getEvmNetworkId(context.sellAsset.chainId),
           }
         } else if (context.isSellAssetUtxo) {
           statusParams = {
-            txHash: context.txHash,
+            txHash,
             chainType: 'utxo',
           }
         } else if (context.isSellAssetSolana) {
           statusParams = {
-            txHash: context.txHash,
+            txHash,
             chainType: 'solana',
             connection: solanaConnection as CheckStatusParams['connection'],
           }

@@ -46,6 +46,10 @@ const createTestContext = (overrides?: Partial<YieldMachineContext>): YieldMachi
   isSellAssetUtxo: false,
   isSellAssetSolana: false,
   isBuyAssetEvm: true,
+  depositTxHash: null,
+  targetPool: null,
+  isDirectDeposit: false,
+  yieldStep: 'input',
   ...overrides,
 })
 

@@ -1,7 +1,7 @@
 import { assign, setup } from 'xstate'
 
 import { DEFAULT_BUY_ASSET, DEFAULT_SELL_ASSET } from '../constants/defaults'
-import type { Asset, QuoteResponse, TradeRate } from '../types'
+import type { Asset, QuoteResponse, TargetPool, TradeRate } from '../types'
 import { getChainType, parseAmount } from '../types'
 import * as guardFns from './guards'
 import type { YieldMachineContext, YieldMachineEvent } from './types'
@@ -10,6 +10,7 @@ export const createInitialContext = (input?: {
   sellAsset?: Asset
   buyAsset?: Asset
   slippage?: string
+  targetPool?: import('../types').TargetPool | null
 }): YieldMachineContext => {
   const sellAsset = input?.sellAsset ?? DEFAULT_SELL_ASSET
   const buyAsset = input?.buyAsset ?? DEFAULT_BUY_ASSET
@@ -25,6 +26,7 @@ export const createInitialContext = (input?: {
     quote: null,
     txHash: null,
     approvalTxHash: null,
+    depositTxHash: null,
     error: null,
     errorSource: null,
     retryCount: 0,
@@ -36,6 +38,9 @@ export const createInitialContext = (input?: {
     isSellAssetUtxo: sellChainType === 'utxo',
     isSellAssetSolana: sellChainType === 'solana',
     isBuyAssetEvm: buyChainType === 'evm',
+    targetPool: input?.targetPool ?? null,
+    isDirectDeposit: false,
+    yieldStep: 'input',
   }
 }
 
@@ -62,6 +67,14 @@ export const yieldMachine = setup({
     isSolanaChain: ({ context }) => guardFns.isSolanaChain(context),
     hasWallet: ({ context }) => guardFns.hasWallet(context),
     hasReceiveAddress: ({ context }) => guardFns.hasReceiveAddress(context),
+    hasTargetPool: ({ context }) => context.targetPool !== null,
+    isDepositApprovalRequired: ({ context }) => {
+      if (!context.targetPool || !context.isBuyAssetEvm) return false
+      const depositToken = context.targetPool.depositToken
+      const namespace = depositToken.assetId.split('/')[1]?.split(':')[0]
+      return namespace === 'erc20'
+    },
+    isDepositError: ({ context }) => context.errorSource === 'DEPOSIT_ERROR',
   },
   actions: {
     assignSellAsset: assign(({ context, event }) => {
@@ -138,6 +151,19 @@ export const yieldMachine = setup({
     assignReceiveAddress: assign(({ event }) => ({
       effectiveReceiveAddress: (event as { type: 'SET_RECEIVE_ADDRESS'; address: string }).address,
     })),
+    assignDepositTxHash: assign(({ event }) => ({
+      depositTxHash: (event as { type: 'DEPOSIT_SUCCESS'; txHash: string }).txHash,
+    })),
+    assignDepositError: assign(({ event }) => ({
+      error: (event as { type: 'DEPOSIT_ERROR'; error: string }).error,
+      errorSource: 'DEPOSIT_ERROR' as const,
+    })),
+    assignTargetPool: assign(({ event }) => ({
+      targetPool: (event as { type: 'SET_TARGET_POOL'; pool: TargetPool }).pool,
+    })),
+    setYieldStep: assign(({ event }) => ({
+      yieldStep: (event as { type: 'SET_YIELD_STEP'; step: import('./types').YieldStep }).step,
+    })),
     assignChainInfo: assign(({ event }) => {
       const e = event as Extract<YieldMachineEvent, { type: 'UPDATE_CHAIN_INFO' }>
       return {
@@ -157,6 +183,7 @@ export const yieldMachine = setup({
       quote: null,
       txHash: null,
       approvalTxHash: null,
+      depositTxHash: null,
       error: null,
       errorSource: null,
       retryCount: 0,
@@ -168,6 +195,7 @@ export const yieldMachine = setup({
       slippage: context.slippage,
       walletAddress: context.walletAddress,
       effectiveReceiveAddress: context.effectiveReceiveAddress,
+      yieldStep: 'input' as const,
     })),
   },
 }).createMachine({
@@ -245,6 +273,55 @@ export const yieldMachine = setup({
     },
     polling_status: {
       on: {
+        STATUS_CONFIRMED: [
+          {
+            target: 'deposit_approval',
+            guard: { type: 'isDepositApprovalRequired' },
+          },
+          {
+            target: 'depositing',
+            guard: { type: 'hasTargetPool' },
+          },
+          { target: 'complete' },
+        ],
+        STATUS_FAILED: {
+          target: 'error',
+          actions: 'assignStatusFailed',
+        },
+      },
+    },
+    deposit_approval: {
+      on: {
+        APPROVE: { target: 'deposit_approving' },
+        RESET: { target: 'input', actions: 'resetSwapState' },
+      },
+    },
+    deposit_approving: {
+      on: {
+        APPROVAL_SUCCESS: {
+          target: 'depositing',
+          actions: 'assignApprovalTxHash',
+        },
+        APPROVAL_ERROR: {
+          target: 'error',
+          actions: 'assignApprovalError',
+        },
+      },
+    },
+    depositing: {
+      on: {
+        DEPOSIT_SUCCESS: {
+          target: 'deposit_polling',
+          actions: 'assignDepositTxHash',
+        },
+        DEPOSIT_ERROR: {
+          target: 'error',
+          actions: 'assignDepositError',
+        },
+      },
+    },
+    deposit_polling: {
+      on: {
         STATUS_CONFIRMED: { target: 'complete' },
         STATUS_FAILED: {
           target: 'error',
@@ -268,6 +345,11 @@ export const yieldMachine = setup({
           {
             target: 'approving',
             guard: { type: 'isApprovalError' },
+            actions: 'incrementRetryCount',
+          },
+          {
+            target: 'depositing',
+            guard: { type: 'isDepositError' },
             actions: 'incrementRetryCount',
           },
           {
