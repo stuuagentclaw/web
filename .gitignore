@@ -49,3 +49,7 @@ yarn-error.log*
 
 # translation benchmark data
 scripts/translations/benchmark/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

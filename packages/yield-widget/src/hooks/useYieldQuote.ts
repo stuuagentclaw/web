@@ -32,7 +32,7 @@ export const useYieldQuote = (
 
   return useQuery({
     queryKey: [
-      'swapQuote',
+      'yieldQuote',
       sellAssetId,
       buyAssetId,
       sellAmountCryptoBaseUnit,

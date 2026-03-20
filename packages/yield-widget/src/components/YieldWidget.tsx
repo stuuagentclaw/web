@@ -19,12 +19,13 @@ import { useYieldExecution } from '../hooks/useYieldExecution'
 import { useYieldHandlers } from '../hooks/useYieldHandlers'
 import { useYieldQuoting } from '../hooks/useYieldQuoting'
 import { YieldMachineCtx } from '../machines/YieldMachineContext'
-import type { Asset, YieldWidgetProps, ThemeMode } from '../types'
+import type { Asset, TargetPool, YieldWidgetProps, ThemeMode } from '../types'
 import { getChainType } from '../types'
 import { AddressInputModal } from './AddressInputModal'
 import { ApprovalStep } from './ApprovalStep'
 import { ExecutionStep } from './ExecutionStep'
 import { InputStep } from './InputStep'
+import { PoolInfoHeader } from './PoolInfoHeader'
 import { SettingsModal } from './SettingsModal'
 import { StatusStep } from './StatusStep'
 import { TokenSelectModal } from './TokenSelectModal'
@@ -43,6 +44,8 @@ type YieldWidgetContentProps = {
   apiClient: ReturnType<typeof createApiClient>
   theme: YieldWidgetProps['theme']
   showPoweredBy: boolean
+  showPoolInfo: boolean
+  targetPool?: TargetPool
   defaultReceiveAddress?: string
   enableWalletConnection: boolean
   isBuyAssetLocked: boolean
@@ -66,6 +69,8 @@ const YieldWidgetContent = ({
   apiClient,
   theme = 'dark',
   showPoweredBy,
+  showPoolInfo,
+  targetPool,
   defaultReceiveAddress,
   enableWalletConnection,
   isBuyAssetLocked,
@@ -203,7 +208,7 @@ const YieldWidgetContent = ({
       style={widgetStyle}
     >
       <div className='ssw-header'>
-        <span className='ssw-header-title'>Swap</span>
+        <span className='ssw-header-title'>{targetPool ? 'Deposit' : 'Swap'}</span>
         <div className='ssw-header-actions'>
           {enableWalletConnection && <ConnectWalletButton />}
           <button
@@ -226,6 +231,8 @@ const YieldWidgetContent = ({
           </button>
         </div>
       </div>
+
+      {showPoolInfo && targetPool && <PoolInfoHeader pool={targetPool} />}
 
       <div className='ssw-step-container'>
         {(state.matches('idle') || state.matches('input') || state.matches('quoting')) && (
@@ -365,6 +372,8 @@ type YieldWidgetCoreProps = {
   apiClient: ReturnType<typeof createApiClient>
   theme: YieldWidgetProps['theme']
   showPoweredBy: boolean
+  showPoolInfo: boolean
+  targetPool?: TargetPool
   enableWalletConnection: boolean
   isBuyAssetLocked: boolean
   partnerCode?: string
@@ -392,6 +401,8 @@ const YieldWidgetCore = ({
   apiClient,
   theme,
   showPoweredBy,
+  showPoolInfo,
+  targetPool,
   enableWalletConnection,
   isBuyAssetLocked,
   partnerCode,
@@ -493,6 +504,8 @@ const YieldWidgetCore = ({
         apiClient={apiClient}
         theme={theme}
         showPoweredBy={showPoweredBy}
+        showPoolInfo={showPoolInfo}
+        targetPool={targetPool}
         defaultReceiveAddress={defaultReceiveAddress}
         enableWalletConnection={enableWalletConnection}
         isBuyAssetLocked={isBuyAssetLocked}
@@ -532,14 +545,16 @@ const YieldWidgetWithExternalWallet = (props: YieldWidgetProps) => {
           <YieldWidgetCore
             walletClient={props.walletClient}
             defaultSellAsset={props.defaultSellAsset ?? DEFAULT_SELL_ASSET}
-            defaultBuyAsset={props.defaultBuyAsset ?? DEFAULT_BUY_ASSET}
+            defaultBuyAsset={props.targetPool?.depositToken ?? DEFAULT_BUY_ASSET}
             defaultSlippage={props.defaultSlippage ?? '0.5'}
             defaultReceiveAddress={props.defaultReceiveAddress}
             apiClient={apiClient}
             theme={props.theme}
             showPoweredBy={props.showPoweredBy ?? true}
+            showPoolInfo={props.showPoolInfo ?? !!props.targetPool}
+            targetPool={props.targetPool}
             enableWalletConnection={false}
-            isBuyAssetLocked={props.isBuyAssetLocked ?? false}
+            isBuyAssetLocked={props.isBuyAssetLocked ?? !!props.targetPool}
             partnerCode={props.partnerCode}
             appUrl={props.appUrl}
             onConnectWallet={props.onConnectWallet}
@@ -581,12 +596,14 @@ const YieldWidgetWithInternalWallet = (
             <YieldWidgetCore
               walletClient={walletClient}
               defaultSellAsset={props.defaultSellAsset ?? DEFAULT_SELL_ASSET}
-              defaultBuyAsset={props.defaultBuyAsset ?? DEFAULT_BUY_ASSET}
+              defaultBuyAsset={props.targetPool?.depositToken ?? DEFAULT_BUY_ASSET}
               defaultSlippage={props.defaultSlippage ?? '0.5'}
               defaultReceiveAddress={props.defaultReceiveAddress}
               apiClient={apiClient}
               theme={props.theme}
               showPoweredBy={props.showPoweredBy ?? true}
+              showPoolInfo={props.showPoolInfo ?? !!props.targetPool}
+              targetPool={props.targetPool}
               enableWalletConnection={true}
               partnerCode={props.partnerCode}
               appUrl={props.appUrl}
@@ -602,7 +619,7 @@ const YieldWidgetWithInternalWallet = (
               buyAllowedChainIds={props.buyAllowedChainIds ?? props.allowedChainIds}
               sellAllowedAssetIds={props.sellAllowedAssetIds}
               buyAllowedAssetIds={props.buyAllowedAssetIds}
-              isBuyAssetLocked={props.isBuyAssetLocked ?? false}
+              isBuyAssetLocked={props.isBuyAssetLocked ?? !!props.targetPool}
             />
           </YieldMachineCtx.Provider>
         </QueryClientProvider>

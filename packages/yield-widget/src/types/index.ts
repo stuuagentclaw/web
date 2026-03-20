@@ -137,12 +137,41 @@ export type ThemeConfig = {
   buttonVariant?: 'filled' | 'outline'
 }
 
+// ============================================
+// Yield-specific types
+// ============================================
+
+export type YieldProtocol = 'morpho' | 'aave' | 'compound' | 'beefy' | 'custom'
+
+export type TargetPool = {
+  /** Pool/vault contract address on the target chain */
+  address: string
+  /** Chain where the pool lives (CAIP-2 format) */
+  chainId: ChainId
+  /** Protocol name for display */
+  protocol: YieldProtocol | string
+  /** Protocol icon URL */
+  protocolIcon?: string
+  /** Human-readable pool name (e.g. "USDC Lending Pool") */
+  poolName?: string
+  /** Current APY as a percentage string (e.g. "5.2") */
+  apy?: string
+  /** The token the pool accepts for deposit */
+  depositToken: Asset
+  /** ABI-encoded deposit function call, if custom */
+  depositCalldata?: string
+  /** Function signature for deposit (e.g. "deposit(uint256,address)") */
+  depositFunction?: string
+}
+
 export type YieldWidgetProps = {
   partnerCode?: string
   apiBaseUrl?: string
   appUrl?: string
+  /** The target yield pool to deposit into */
+  targetPool: TargetPool
+  /** Default asset the user wants to sell/convert from */
   defaultSellAsset?: Asset
-  defaultBuyAsset?: Asset
   disabledChainIds?: ChainId[]
   disabledAssetIds?: AssetId[]
   allowedChainIds?: ChainId[]
@@ -157,17 +186,27 @@ export type YieldWidgetProps = {
   allowedSwapperNames?: SwapperName[]
   walletClient?: WalletClient
   onConnectWallet?: () => void
+  /** Called when the full flow (swap + bridge + deposit) succeeds */
+  onDepositSuccess?: (txHash: string) => void
+  /** Called when any step fails */
+  onDepositError?: (error: Error) => void
+  /** Called when user selects a source asset */
+  onAssetSelect?: (asset: Asset) => void
+  /** Legacy swap callbacks (kept for compatibility with shared components) */
   onSwapSuccess?: (txHash: string) => void
   onSwapError?: (error: Error) => void
-  onAssetSelect?: (type: 'sell' | 'buy', asset: Asset) => void
   theme?: ThemeMode | ThemeConfig
   defaultSlippage?: string
   showPoweredBy?: boolean
   enableWalletConnection?: boolean
   walletConnectProjectId?: string
-  defaultReceiveAddress?: string
   ratesRefetchInterval?: number
+  /** Default receive address for the deposit */
+  defaultReceiveAddress?: string
+  /** Lock the buy-side asset (auto-set when targetPool is provided) */
   isBuyAssetLocked?: boolean
+  /** Show pool info header (APY, protocol, pool name) */
+  showPoolInfo?: boolean
 }
 
 export type RatesResponse = {

@@ -8,6 +8,8 @@ export type {
   TradeRate,
   TradeQuote,
   YieldWidgetProps,
+  TargetPool,
+  YieldProtocol,
   ThemeMode,
   ThemeConfig,
 } from './types'
